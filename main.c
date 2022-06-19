@@ -1,53 +1,74 @@
 #include "monty.h"
-stack_t *head = NULL;
+#include "lists.h"
+
+data_t data = DATA_INIT;
 
 /**
- * main - Entry Point
- * @argc: Number of command line arguments.
- * @argv: An array containing the arguments.
- * Return: Always Zero.
+ * monty - helper function for main function
+ * @args: pointer to struct of arguments from main
+ *
+ * Description: opens and reads from the file
+ * containing the opcodes, and calls the function
+ * that will find the corresponding executing function
  */
-int main(int argc, char **argv)
+void monty(args_t *args)
 {
-	if (argc < 2 || argc > 2)
-		err(1);
-	open_file(argv[1]);
-	free_nodes();
-	return (0);
-}
+	size_t len = 0;
+	int get = 0;
+	void (*code_func)(stack_t **, unsigned int);
 
-/**
- * free_nodes - Frees nodes in the stack.
- */
-void free_nodes(void)
-{
-	stack_t *tmp;
-
-	if (head == NULL)
-		return;
-
-	while (head != NULL)
+	if (args->ac != 2)
 	{
-		tmp = head;
-		head = head->next;
-		free(tmp);
+		dprintf(STDERR_FILENO, USAGE);
+		exit(EXIT_FAILURE);
 	}
+	data.fptr = fopen(args->av, "r");
+	if (!data.fptr)
+	{
+		dprintf(STDERR_FILENO, FILE_ERROR, args->av);
+		exit(EXIT_FAILURE);
+	}
+	while (1)
+	{
+		args->line_number++;
+		get = getline(&(data.line), &len, data.fptr);
+		if (get < 0)
+			break;
+		data.words = strtow(data.line);
+		if (data.words[0] == NULL || data.words[0][0] == '#')
+		{
+			free_all(0);
+			continue;
+		}
+		code_func = get_func(data.words);
+		if (!code_func)
+		{
+			dprintf(STDERR_FILENO, UNKNOWN, args->line_number, data.words[0]);
+			free_all(1);
+			exit(EXIT_FAILURE);
+		}
+		code_func(&(data.stack), args->line_number);
+		free_all(0);
+	}
+	free_all(1);
 }
 
 /**
- * create_node - Creates and populates a node.
- * @n: Number to go inside the node.
- * Return: Upon sucess a pointer to the node. Otherwise NULL.
+ * main - entry point for monty bytecode interpreter
+ * @argc: number of arguments
+ * @argv: array of arguments
+ *
+ * Return: EXIT_SUCCESS or EXIT_FAILURE
  */
-stack_t *create_node(int n)
+int main(int argc, char *argv[])
 {
-	stack_t *node;
+	args_t args;
 
-	node = malloc(sizeof(stack_t));
-	if (node == NULL)
-		err(4);
-	node->next = NULL;
-	node->prev = NULL;
-	node->n = n;
-	return (node);
+	args.av = argv[1];
+	args.ac = argc;
+	args.line_number = 0;
+
+	monty(&args);
+
+	return (EXIT_SUCCESS);
 }
